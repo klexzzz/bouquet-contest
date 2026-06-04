@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <title>Конкурс букетов</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .counter {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.6);
+            padding: 8px 15px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            z-index: 10;
+            font-size: 16px;
+        }
+
+        .cards-container {
+            position: relative;
+            width: 320px;
+            height: 480px;
+            margin: 20px auto;
+        }
+
+        .card {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            cursor: grab;
+            will-change: transform;
+            background: white;
+        }
+
+        .card:active {
+            cursor: grabbing;
+        }
+
+        .card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .card-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+            color: white;
+        }
+
+        .card-info h3 {
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+
+        .card-info p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 30px;
+            margin-top: 10px;
+            z-index: 10;
+        }
+
+        .btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: none;
+            font-size: 32px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn-left {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .btn-right {
+            background: #51cf66;
+            color: white;
+        }
+
+        .results {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .results.active {
+            display: flex;
+        }
+
+        .results h2 {
+            color: white;
+            margin-bottom: 25px;
+            font-size: 26px;
+        }
+
+        .result-item {
+            background: white;
+            margin: 8px;
+            padding: 12px 20px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 350px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .result-name {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .result-votes {
+            background: #764ba2;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .winner {
+            background: linear-gradient(135deg, gold, #ffd700);
+            color: #333;
+        }
+
+        .restart-btn {
+            margin-top: 25px;
+            padding: 12px 28px;
+            background: #51cf66;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        @media (max-width: 480px) {
+            .cards-container {
+                width: 280px;
+                height: 420px;
+            }
+            .btn {
+                width: 60px;
+                height: 60px;
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="counter" id="counter">0 / 15</div>
+        
+        <div class="cards-container" id="cardsContainer">
+        </div>
+
+        <div class="buttons">
+            <button class="btn btn-left" id="leftBtn">❌</button>
+            <button class="btn btn-right" id="rightBtn">❤️</button>
+        </div>
+    </div>
+
+    <div class="results" id="results">
+        <h2>🏆 ИТОГИ ГОЛОСОВАНИЯ 🏆</h2>
+        <div id="resultsList"></div>
+        <button class="restart-btn" onclick="location.reload()">🔁 Пройти заново</button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.enableClosingConfirmation();
+
+        // =============================================
+        // === ВСТАВЬТЕ ВАШИ 15 ССЫЛОК НА ФОТО НИЖЕ ===
+        // =============================================
+        
+        const bouquets = [
+            { id: 1, name: "Букет №1", image: "https://ibb.co/LDdzB4N8", votes: 0 },
+            { id: 2, name: "Букет №2", image: "https://ibb.co/TB1fsXyT", votes: 0 },
+            { id: 3, name: "Букет №3", image: "https://ibb.co/HfqRsNKf", votes: 0 },
+            { id: 4, name: "Букет №4", image: "https://ibb.co/674DmFWy", votes: 0 },
+            { id: 5, name: "Букет №5", image: "https://ibb.co/W4RcZhd4", votes: 0 },
+            { id: 6, name: "Букет №6", image: "https://ibb.co/99Spbq71", votes: 0 },
+            { id: 7, name: "Букет №7", image: "https://ibb.co/NdmLdK6n", votes: 0 },
+            { id: 8, name: "Букет №8", image: "https://ibb.co/tPPyv0hT", votes: 0 },
+            { id: 9, name: "Букет №9", image: "https://ibb.co/HfxG1Ch2", votes: 0 },
+            { id: 10, name: "Букет №10", image: "https://ibb.co/1f2PwQN3", votes: 0 },
+            { id: 11, name: "Букет №11", image: "https://ibb.co/WW9BXMQD", votes: 0 },
+            { id: 12, name: "Букет №12", image: "https://ibb.co/KxrkJVCf", votes: 0 },
+            { id: 13, name: "Букет №13", image: "https://ibb.co/MkKpRXKM", votes: 0 },
+            { id: 14, name: "Букет №14", image: "https://ibb.co/Hp95H12G", votes: 0 },
+            { id: 15, name: "Букет №15", image: "https://ibb.co/BVsxhKwb", votes: 0 }
+        ];
+
+        // =============================================
+        // === НИЧЕГО НИЖЕ НЕ МЕНЯЙТЕ ===
+        // =============================================
+
+        let shuffledBouquets = [...bouquets].sort(() => Math.random() - 0.5);
+        let currentIndex = 0;
+        let isAnimating = false;
+        let currentCard = null;
+
+        function updateCounter() {
+            document.getElementById('counter').innerHTML = `${currentIndex} / ${shuffledBouquets.length}`;
+        }
+
+        function createCard(bouquet) {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
+                <img src="${bouquet.image}" alt="${bouquet.name}" onerror="this.src='https://via.placeholder.com/400x500/cccccc/666?text=Фото+не+загрузилось'">
+                <div class="card-info">
+                    <h3>${bouquet.name}</h3>
+                    <p>👆 Свайп вправо ❤️ — голос за букет</p>
+                </div>
+            `;
+            return card;
+        }
+
+        function attachCardEvents(card) {
+            let startX = 0;
+            let isDragging = false;
+
+            const onStart = (e) => {
+                if (isAnimating) return;
+                isDragging = true;
+                const clientX = e.clientX ?? (e.touches ? e.touches[0].clientX : null);
+                if (clientX === null) return;
+                startX = clientX;
+                card.style.transition = 'none';
+            };
+
+            const onMove = (e) => {
+                if (!isDragging || isAnimating) return;
+                e.preventDefault();
+                const clientX = e.clientX ?? (e.touches ? e.touches[0].clientX : null);
+                if (clientX === null) return;
+                const deltaX = clientX - startX;
+                const rotation = deltaX * 0.1;
+                card.style.transform = `translate(${deltaX}px, 0px) rotate(${rotation}deg)`;
+                
+                if (deltaX > 50) {
+                    card.style.boxShadow = '0 0 20px rgba(81, 207, 102, 0.6)';
+                } else if (deltaX < -50) {
+                    card.style.boxShadow = '0 0 20px rgba(255, 107, 107, 0.6)';
+                } else {
+                    card.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)';
+                }
+            };
+
+            const onEnd = (e) => {
+                if (!isDragging || isAnimating) return;
+                isDragging = false;
+                
+                const clientX = e.clientX ?? (e.changedTouches ? e.changedTouches[0].clientX : null);
+                if (clientX === null) {
+                    resetCardPosition(card);
+                    return;
+                }
+                const deltaX = clientX - startX;
+                
+                if (Math.abs(deltaX) > 80) {
+                    const direction = deltaX > 0 ? 'right' : 'left';
+                    animateSwipe(card, direction);
+                } else {
+                    resetCardPosition(card);
+                }
+            };
+
+            card.addEventListener('mousedown', onStart);
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onEnd);
+            card.addEventListener('touchstart', onStart);
+            card.addEventListener('touchmove', onMove);
+            card.addEventListener('touchend', onEnd);
+        }
+
+        function resetCardPosition(card) {
+            card.style.transition = 'transform 0.3s';
+            card.style.transform = 'translate(0px, 0px) rotate(0deg)';
+            card.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)';
+            setTimeout(() => {
+                card.style.transition = '';
+            }, 300);
+        }
+
+        function animateSwipe(card, direction) {
+            isAnimating = true;
+            const deltaX = direction === 'right' ? 500 : -500;
+            const rotation = direction === 'right' ? 30 : -30;
+            
+            card.style.transition = 'transform 0.3s ease-out';
+            card.style.transform = `translate(${deltaX}px, 100px) rotate(${rotation}deg)`;
+            
+            if (direction === 'right') {
+                shuffledBouquets[currentIndex].votes++;
+            }
+            
+            setTimeout(() => {
+                card.remove();
+                currentIndex++;
+                loadNextCard();
+                isAnimating = false;
+            }, 300);
+        }
+
+        function loadNextCard() {
+            if (currentIndex >= shuffledBouquets.length) {
+                showResults();
+                return;
+            }
+
+            const container = document.getElementById('cardsContainer');
+            const bouquet = shuffledBouquets[currentIndex];
+            const card = createCard(bouquet);
+            
+            container.appendChild(card);
+            currentCard = card;
+            attachCardEvents(card);
+            updateCounter();
+        }
+
+        function swipeWithButton(direction) {
+            if (!currentCard || isAnimating) return;
+            animateSwipe(currentCard, direction);
+        }
+
+        function showResults() {
+            const sorted = [...shuffledBouquets].sort((a, b) => b.votes - a.votes);
+            const maxVotes = sorted[0].votes;
+            
+            const resultsList = document.getElementById('resultsList');
+            resultsList.innerHTML = '';
+            
+            sorted.forEach(bouquet => {
+                const isWinner = bouquet.votes === maxVotes && maxVotes > 0;
+                const item = document.createElement('div');
+                item.className = `result-item ${isWinner ? 'winner' : ''}`;
+                let voteText = 'голосов';
+                if (bouquet.votes === 1) voteText = 'голос';
+                if (bouquet.votes >= 2 && bouquet.votes <= 4) voteText = 'голоса';
+                item.innerHTML = `
+                    <span class="result-name">${bouquet.name}</span>
+                    <span class="result-votes">${bouquet.votes} ${voteText}</span>
+                `;
+                resultsList.appendChild(item);
+            });
+            
+            tg.sendData(JSON.stringify({
+                results: sorted,
+                winner: sorted[0].name,
+                winnerVotes: sorted[0].votes,
+                totalVotes: shuffledBouquets.reduce((sum, b) => sum + b.votes, 0)
+            }));
+            
+            document.getElementById('results').classList.add('active');
+        }
+
+        document.getElementById('leftBtn').onclick = () => swipeWithButton('left');
+        document.getElementById('rightBtn').onclick = () => swipeWithButton('right');
+        
+        loadNextCard();
+    </script>
+</body>
+</html>
