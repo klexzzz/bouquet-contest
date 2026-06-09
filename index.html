@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <title>Букетный конкурс</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { background: linear-gradient(145deg, #0f0b1e 0%, #1e1733 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow-x: hidden; }
+        .app-container { width: 100%; max-width: 400px; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }
+        .header { position: absolute; top: 0; left: 0; right: 0; padding: 50px 20px 20px; text-align: center; background: linear-gradient(180deg, rgba(15,11,30,0.95) 0%, transparent 100%); z-index: 10; }
+        .title { color: #fff; font-size: 20px; font-weight: 700; margin-bottom: 4px; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .counter { color: #a39cb5; font-size: 14px; font-weight: 500; }
+        .cards-stack { position: relative; width: 320px; height: 420px; margin-top: 40px; perspective: 1000px; }
+        .card { position: absolute; width: 100%; height: 100%; background: #241c3c; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); overflow: hidden; display: flex; flex-direction: column; transform-origin: center bottom; cursor: grab; border: 1px solid rgba(255,255,255,0.05); }
+        .card:active { cursor: grabbing; }
+        .image-container { position: relative; width: 100%; height: 78%; background: #1a142c; display: flex; justify-content: center; align-items: center; }
+        .bouquet-img { width: 100%; height: 100%; object-fit: cover; }
+        .card-info { padding: 18px 20px; background: #241c3c; flex-grow: 1; display: flex; align-items: center; }
+        .bouquet-name { color: #fff; font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+        .badge { position: absolute; top: 20px; padding: 8px 16px; border-radius: 40px; font-size: 18px; font-weight: 800; text-transform: uppercase; opacity: 0; transform: rotate(-15deg); z-index: 5; border: 3px solid; }
+        .badge-like { left: 20px; color: #4ade80; border-color: #4ade80; transform: rotate(-15deg); }
+        .badge-nope { right: 20px; color: #f87171; border-color: #f87171; transform: rotate(15deg); }
+        .controls { display: flex; gap: 20px; margin-top: 35px; z-index: 10; }
+        .btn { width: 64px; height: 64px; border-radius: 50%; border: none; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.3); transition: transform 0.2s, background 0.2s; }
+        .btn:active { transform: scale(0.9); }
+        .btn-nope { background: #241c3c; border: 1px solid rgba(248,113,113,0.2); }
+        .btn-nope svg { fill: #f87171; }
+        .btn-like { background: linear-gradient(135deg, #ec4899 0%, #f43f5e 100%); }
+        .btn-like svg { fill: #fff; }
+        .results-panel { display: none; width: 340px; background: #241c3c; border-radius: 28px; padding: 30px 24px; box-shadow: 0 15px 40px rgba(0,0,0,0.6); text-align: center; border: 1px solid rgba(255,255,255,0.05); flex-direction: column; align-items: center; }
+        .results-title { color: #fff; font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+        .results-subtitle { color: #a39cb5; font-size: 14px; margin-bottom: 24px; }
+        .winner-box { background: rgba(236,72,153,0.1); border: 1px solid rgba(236,72,153,0.2); padding: 16px 20px; border-radius: 16px; width: 100%; margin-bottom: 24px; }
+        .winner-label { color: #ec4899; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+        .winner-name { color: #fff; font-size: 18px; font-weight: 600; }
+        .results-actions { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+        .action-btn { width: 100%; padding: 14px; border-radius: 14px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        .btn-primary { background: #fff; color: #120e24; }
+        .btn-secondary { background: rgba(255,255,255,0.05); color: #a39cb5; border: 1px solid rgba(255,255,255,0.05); }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header" id="appHeader">
+            <div class="title">Выбери лучший букет</div>
+            <div class="counter" id="counter">1 / 15</div>
+        </div>
+
+        <div class="cards-stack" id="cardsStack"></div>
+
+        <div class="controls" id="appControls">
+            <button class="btn btn-nope" id="nopeBtn">
+                <svg width="24" height="24" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+            <button class="btn btn-like" id="likeBtn">
+                <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            </button>
+        </div>
+
+        <div class="results-panel" id="resultsPanel">
+            <div class="results-title">Выбор сделан!</div>
+            <div class="results-subtitle">Ваши предпочтения успешно сформированы.</div>
+            <div class="winner-box">
+                <div class="winner-label">Ваш фаворит</div>
+                <div class="winner-name" id="winnerName">Загрузка...</div>
+            </div>
+            <div class="results-actions">
+                <button class="action-btn btn-primary" id="closeAppBtn">Завершить голосование</button>
+                <button class="action-btn btn-secondary" id="restartAppBtn">Пройти заново</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        // Ссылки на фото восстановлены в соответствии с вашим исходным файлом
+        const bouquetsData = [
+            { name: "Розовое совершенство", img: "images/bouquet1.jpg" },
+            { name: "Лавандовый сон", img: "images/bouquet2.jpg" },
+            { name: "Солнечный свет", img: "images/bouquet3.jpg" },
+            { name: "Бархатный вечер", img: "images/bouquet4.jpg" },
+            { name: "Нежный шёпот", img: "images/bouquet5.jpg" },
+            { name: "Королевский букет", img: "images/bouquet6.jpg" },
+            { name: "Весенняя свежесть", img: "images/bouquet7.jpg" },
+            { name: "Романтика", img: "images/bouquet8.jpg" },
+            { name: "Яркая фантазия", img: "images/bouquet9.jpg" },
+            { name: "Жемчужный", img: "images/bouquet10.jpg" },
+            { name: "Магия цветов", img: "images/bouquet11.jpg" },
+            { name: "Изумрудный", img: "images/bouquet12.jpg" },
+            { name: "Перламутровый", img: "images/bouquet13.jpg" },
+            { name: "Сияние", img: "images/bouquet14.jpg" },
+            { name: "Вдохновение", img: "images/bouquet15.jpg" }
+        ];
+
+        let shuffled = bouquetsData.map(b => ({ ...b, votes: 0 })).sort(() => Math.random() - 0.5);
+        let currentIndex = 0;
+        let currentCard = null;
+        let isAnimating = false;
+
+        function createCard(data) {
+            const card = document.createElement("div");
+            card.className = "card";
+            card.innerHTML = `
+                <div class="image-container">
+                    <div class="badge badge-like">LIKE</div>
+                    <div class="badge badge-nope">NOPE</div>
+                    <img src="${data.img}" class="bouquet-img" draggable="false">
+                </div>
+                <div class="card-info">
+                    <div class="bouquet-name">${data.name}</div>
+                </div>
+            `;
+            return card;
+        }
+
+        function attachDragEvents(card) {
+            let startX = 0, currentX = 0;
+            const badgeLike = card.querySelector(".badge-like");
+            const badgeNope = card.querySelector(".badge-nope");
+
+            function onStart(e) {
+                if (isAnimating) return;
+                startX = e.type.includes("touch") ? e.touches[0].clientX : e.clientX;
+                document.addEventListener(e.type.includes("touch") ? "touchmove" : "mousemove", onMove);
+                document.addEventListener(e.type.includes("touch") ? "touchend" : "mouseup", onEnd);
+            }
+
+            function onMove(e) {
+                const clientX = e.type.includes("touch") ? e.touches[0].clientX : e.clientX;
+                currentX = clientX - startX;
+                const rotation = currentX / 20;
+                card.style.transform = `translate(${currentX}px, 0px) rotate(${rotation}deg)`;
+
+                if (currentX > 0) {
+                    badgeLike.style.opacity = Math.min(currentX / 100, 1);
+                    badgeNope.style.opacity = 0;
+                } else {
+                    badgeNope.style.opacity = Math.min(Math.abs(currentX) / 100, 1);
+                    badgeLike.style.opacity = 0;
+                }
+            }
+
+            function onEnd() {
+                document.removeEventListener("mousemove", onMove);
+                document.removeEventListener("mouseup", onEnd);
+                document.removeEventListener("touchmove", onMove);
+                document.removeEventListener("touchend", onEnd);
+
+                if (Math.abs(currentX) > 120) {
+                    finishSwipe(card, currentX > 0 ? "right" : "left");
+                } else {
+                    card.style.transition = "transform 0.2s ease";
+                    card.style.transform = "translate(0px, 0px) rotate(0deg)";
+                    badgeLike.style.opacity = 0;
+                    badgeNope.style.opacity = 0;
+                    setTimeout(() => card.style.transition = "", 200);
+                }
+            }
+
+            card.addEventListener("mousedown", onStart);
+            card.addEventListener("touchstart", onStart, { passive: true });
+        }
+
+        function finishSwipe(card, direction) {
+            isAnimating = true;
+            const targetX = direction === "right" ? 550 : -550;
+            card.style.transition = "transform 0.3s cubic-bezier(0.3, 0.9, 0.5, 1.1)";
+            card.style.transform = `translate(${targetX}px, 120px) rotate(${direction === "right" ? 25 : -25}deg)`;
+            
+            if (direction === "right") {
+                shuffled[currentIndex].votes = 1;
+            }
+
+            setTimeout(() => {
+                card.remove();
+                currentIndex++;
+                if (currentIndex >= shuffled.length) {
+                    showResults();
+                } else {
+                    loadNextCard();
+                }
+                isAnimating = false;
+            }, 280);
+        }
+
+        function loadNextCard() {
+            const card = createCard(shuffled[currentIndex]);
+            document.getElementById("cardsStack").appendChild(card);
+            currentCard = card;
+            attachDragEvents(card);
+            document.getElementById("counter").innerHTML = `${currentIndex + 1} / ${shuffled.length}`;
+        }
+
+        function showResults() {
+            document.getElementById("appHeader").style.display = "none";
+            document.getElementById("cardsStack").style.display = "none";
+            document.getElementById("appControls").style.display = "none";
+            
+            const winner = shuffled.reduce((a, b) => a.votes > b.votes ? a : b);
+            document.getElementById("winnerName").innerText = winner.votes > 0 ? winner.name : "Ни один не выбран";
+            document.getElementById("resultsPanel").style.display = "flex";
+
+            sendVotesToBot();
+        }
+
+        function sendVotesToBot() {
+            const winner = shuffled.reduce((a, b) => a.votes > b.votes ? a : b);
+            const votesData = shuffled.map(b => ({ name: b.name, votes: b.votes }));
+            
+            const payload = {
+                type: "vote_result",
+                winner: winner.votes > 0 ? winner.name : "Ни один",
+                votes: votesData
+            };
+            
+            try {
+                tg.sendData(JSON.stringify(payload));
+            } catch(e) {
+                console.error("Ошибка интеграции с Telegram:", e);
+            }
+        }
+
+        document.getElementById("likeBtn").onclick = () => { if(currentCard && !isAnimating) finishSwipe(currentCard, "right"); };
+        document.getElementById("nopeBtn").onclick = () => { if(currentCard && !isAnimating) finishSwipe(currentCard, "left"); };
+        document.getElementById("restartAppBtn").onclick = () => location.reload();
+        document.getElementById("closeAppBtn").onclick = () => tg.close();
+
+        loadNextCard();
+    </script>
+</body>
+</html>
